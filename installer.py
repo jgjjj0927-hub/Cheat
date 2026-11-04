@@ -1,18 +1,5 @@
-# language: python, file: installer.py — приветствие и ожидание cs2.exe
+# language: python, file: installer.py — приветствие, старт сразу
 import tkinter as tk
-import threading
-import time
-import psutil
-
-
-def find_cs2():
-    for p in psutil.process_iter(attrs=["name"]):
-        try:
-            if p.info["name"] and p.info["name"].lower() == "cs2.exe":
-                return True
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-    return False
 
 
 class Installer:
@@ -35,7 +22,7 @@ class Installer:
                  fg="#888888", bg="#121212", font=("Segoe UI", 10)).pack(pady=(0, 16))
 
         self.status = tk.Label(self.win,
-                               text="Нажмите «Продолжить», чтобы начать установку.",
+                               text="Нажмите «Продолжить», чтобы запустить.",
                                fg="#ffff00", bg="#121212", font=("Segoe UI", 10))
         self.status.pack(pady=(10, 10))
 
@@ -51,26 +38,12 @@ class Installer:
                                  font=("Segoe UI", 9))
         self.progress.pack(pady=(10, 0))
 
-        self._cancel = False
-
     def on_continue(self):
-        self.button.config(state="disabled", text="Установка...")
-        self.status.config(text="Ожидание запуска CS2...", fg="#00aaff")
-        self.progress.config(text="Откройте CS2, чтобы продолжить установку.")
-        threading.Thread(target=self.wait_for_cs2, daemon=True).start()
-
-    def wait_for_cs2(self):
-        while not self._cancel and not find_cs2():
-            time.sleep(1.0)
-        if not self._cancel:
-            self.win.after(0, self.success)
-
-    def success(self):
-        self.status.config(text="Установка успешная!", fg="#00ff88")
-        self.progress.config(text="Чит установлен. Нажмите Insert в игре.")
+        self.button.config(state="disabled", text="Запуск...")
+        self.status.config(text="Чит запущен!", fg="#00ff88")
+        self.progress.config(text="Нажмите Insert в игре.")
         self.button.config(state="normal", text="Закрыть", command=self.close)
         self.on_installed()
 
     def close(self):
-        self._cancel = True
         self.win.destroy()
