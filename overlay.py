@@ -9,35 +9,33 @@ class Overlay:
         self.visible = False
         self.menu_visible = False
 
-        # оверлей — прозрачный по чёрному
+        self.sw = cheat.SCREEN_W
+        self.sh = cheat.SCREEN_H
+
         self.win = tk.Toplevel(root)
         self.win.overrideredirect(True)
         self.win.attributes("-topmost", True)
         self.win.attributes("-transparentcolor", "black")
         self.win.configure(bg="black")
-        sw = self.win.winfo_screenwidth()
-        sh = self.win.winfo_screenheight()
-        self.win.geometry(f"{sw}x{sh}+0+0")
-        self.canvas = tk.Canvas(self.win, width=sw, height=sh, bg="black",
+        self.win.geometry(f"{self.sw}x{self.sh}+0+0")
+        self.canvas = tk.Canvas(self.win, width=self.sw, height=self.sh, bg="black",
                                 highlightthickness=0)
         self.canvas.pack()
         self.win.withdraw()
 
-        # меню — обычное окно (без overrideredirect, чтобы чекбоксы кликались)
         self.menu = tk.Toplevel(root)
         self.menu.title("CS&SOFT")
         self.menu.attributes("-topmost", True)
         self.menu.configure(bg="#1e1e1e")
-        self.menu.geometry("360x600+20+20")
+        self.menu.geometry("380x720+20+20")
         self.menu.withdraw()
 
         self.checks = {}
         self._build_menu()
 
     def _build_menu(self):
-        header = tk.Label(self.menu, text="CS&SOFT", fg="#00ff88", bg="#1e1e1e",
-                          font=("Segoe UI", 14, "bold"))
-        header.pack(pady=(10, 2))
+        tk.Label(self.menu, text="CS&SOFT", fg="#00ff88", bg="#1e1e1e",
+                 font=("Segoe UI", 14, "bold")).pack(pady=(10, 2))
 
         self.status = tk.Label(self.menu, text="waiting for cs2.exe",
                                fg="#ff8800", bg="#1e1e1e", font=("Segoe UI", 9))
@@ -65,13 +63,35 @@ class Overlay:
             ("esp_distance", "Distance", True),
             ("esp_health", "Health", True),
             ("esp_team", "Show teammates", False),
+            ("esp_skeleton", "Skeleton", False),
+            ("esp_weapon", "Weapon", False),
         ]:
             add_check(esp, k, t, d)
 
-        radar = tk.LabelFrame(self.menu, text="Radar", fg="#00ff88", bg="#1e1e1e",
+        radar = tk.LabelFrame(self.menu, text="Radar / Info", fg="#00ff88", bg="#1e1e1e",
                               font=("Segoe UI", 9, "bold"))
         radar.pack(fill="x", padx=8, pady=4)
         add_check(radar, "radar_enabled", "Enable Radar", True)
+        add_check(radar, "bomb_enabled", "Bomb timer", True)
+        add_check(radar, "spectator_enabled", "Spectator list", True)
+
+        aim = tk.LabelFrame(self.menu, text="Aimbot", fg="#00ff88", bg="#1e1e1e",
+                            font=("Segoe UI", 9, "bold"))
+        aim.pack(fill="x", padx=8, pady=4)
+        add_check(aim, "aimbot_enabled", "Enable Aimbot", False)
+        add_check(aim, "aimbot_team", "Target teammates", False)
+        add_check(aim, "aimbot_visible", "Visible only", False)
+        row = tk.Frame(aim, bg="#1e1e1e")
+        row.pack(anchor="w", padx=10, pady=2)
+        tk.Label(row, text="Mode:", fg="#cccccc", bg="#1e1e1e",
+                 font=("Segoe UI", 8)).pack(side="left")
+        mode_var = tk.StringVar(value=cheat.CFG.get("aimbot_mode", "crosshair"))
+        mode_menu = tk.OptionMenu(row, mode_var, "crosshair", "hp", "distance",
+                                   command=lambda v: self._on_mode(v))
+        mode_menu.config(bg="#333333", fg="#ffffff", font=("Segoe UI", 8),
+                         highlightthickness=0, bd=0)
+        mode_menu["menu"].config(bg="#333333", fg="#ffffff")
+        mode_menu.pack(side="left", padx=4)
 
         trig = tk.LabelFrame(self.menu, text="Triggerbot", fg="#00ff88", bg="#1e1e1e",
                              font=("Segoe UI", 9, "bold"))
@@ -84,12 +104,15 @@ class Overlay:
         add_check(move, "bhop_enabled", "Bunnyhop", False)
         add_check(move, "no_recoil", "No recoil", False)
 
-        tip = tk.Label(self.menu, text="Insert — toggle menu", fg="#888888",
-                       bg="#1e1e1e", font=("Segoe UI", 8))
-        tip.pack(side="bottom", pady=8)
+        tk.Label(self.menu, text="Insert — toggle menu", fg="#888888",
+                 bg="#1e1e1e", font=("Segoe UI", 8)).pack(side="bottom", pady=8)
 
     def _on_toggle(self, key, var):
         cheat.CFG[key] = var.get()
+        cheat.save_config()
+
+    def _on_mode(self, value):
+        cheat.CFG["aimbot_mode"] = value
         cheat.save_config()
 
     def toggle_menu(self):
@@ -118,8 +141,11 @@ class Overlay:
                     "boxes": list(cheat.overlay_data["boxes"]),
                     "texts": list(cheat.overlay_data["texts"]),
                     "radar": list(cheat.overlay_data["radar"]),
+                    "skeleton": list(cheat.overlay_data.get("skeleton", [])),
                     "ready": cheat.overlay_data["ready"],
                     "pid": cheat.overlay_data["pid"],
+                    "bomb": cheat.overlay_data.get("bomb"),
+                    "spectators": list(cheat.overlay_data.get("spectators", [])),
                 }
             if data["ready"]:
                 self.status.config(text=f"attached: pid {data['pid']}", fg="#00ff88")
@@ -145,6 +171,11 @@ class Overlay:
                 for (x, y, txt) in data["texts"]:
                     self.canvas.create_text(x, y, text=txt, fill="#ff6666",
                                             font=("Consolas", 10), anchor="nw")
+                for bones in data["skeleton"]:
+                    for i in range(len(bones) - 1):
+                        self.canvas.create_line(bones[i][0], bones[i][1],
+                                                bones[i + 1][0], bones[i + 1][1],
+                                                fill="#ff6666", width=1)
                 if cheat.CFG.get("radar_enabled", True):
                     cx, cy, r = 70, 70, 55
                     self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r,
@@ -156,6 +187,16 @@ class Overlay:
                         self.canvas.create_oval(cx + rx - 2, cy + ry - 2,
                                                 cx + rx + 2, cy + ry + 2,
                                                 fill=color, outline="")
+                bomb = data.get("bomb")
+                if bomb:
+                    self.canvas.create_text(self.sw - 200, 50,
+                        text=f"BOMB: {bomb['remaining']:.1f}s",
+                        fill="#ff3333", font=("Consolas", 14, "bold"), anchor="nw")
+                specs = data.get("spectators", [])
+                if specs:
+                    self.canvas.create_text(self.sw - 200, 80,
+                        text=f"SPECTATORS: {len(specs)}",
+                        fill="#ffaa00", font=("Consolas", 12), anchor="nw")
         except Exception:
             pass
 
