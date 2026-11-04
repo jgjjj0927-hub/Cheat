@@ -4,7 +4,8 @@ import sys
 import tkinter as tk
 import queue
 
-import keyboard
+import win32api
+
 import pystray
 from PIL import Image, ImageDraw
 
@@ -30,12 +31,21 @@ class App:
         self.tray = None
         self.installed = False
         self.events = queue.Queue()
-
-        keyboard.add_hotkey("insert", lambda: self.events.put("toggle"))
+        self._insert_held = False
 
         self.root.after(50, self._poll_events)
 
     def _poll_events(self):
+        try:
+            if win32api.GetAsyncKeyState(0x2D) & 0x8000:
+                if not self._insert_held:
+                    self.events.put("toggle")
+                    self._insert_held = True
+            else:
+                self._insert_held = False
+        except Exception:
+            pass
+
         try:
             while True:
                 ev = self.events.get_nowait()
@@ -71,14 +81,10 @@ class App:
 
     def _quit(self):
         try:
-            keyboard.unhook_all()
+            if self.tray:
+                self.tray.stop()
         except Exception:
             pass
-        if self.tray:
-            try:
-                self.tray.stop()
-            except Exception:
-                pass
         self.root.quit()
         self.root.destroy()
         sys.exit(0)
